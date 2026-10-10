@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>Social Radar</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#eaf0ec;background:#09100e}
+*{box-sizing:border-box}body{margin:0;padding:24px}main{max-width:1080px;margin:auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #293c34;padding-bottom:22px}
+h1{letter-spacing:-.05em;font-size:clamp(2rem,5vw,3rem);margin:0}.sub{color:#8ea79a;margin:8px 0 0}
+.signal,.followers{color:#9cfca9}.pill{display:inline-flex;padding:7px 10px;border:1px solid #375847;border-radius:20px;font-size:12px;color:#c6e4cf;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}
+.stat,article{background:#101b16;border:1px solid #253a30;border-radius:15px;padding:18px}
+.stat .value{font-size:1.8rem;font-weight:750;letter-spacing:-.06em}.muted{color:#8ea79a;font-size:.84rem}
+h2{font-size:1.15rem;letter-spacing:-.02em;margin-top:28px}.cards{display:grid;gap:12px}
+.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.name{font-size:1.2rem;font-weight:700}.followers{font-size:1.5rem;font-weight:750}
+.details{display:flex;gap:15px;flex-wrap:wrap;margin:14px 0;color:#b2c6b9;font-size:.87rem}
+.links{display:flex;gap:18px;flex-wrap:wrap}a{color:#a8d3ff;text-decoration:none}a:hover{text-decoration:underline}
+.warning{color:#f7d291}.notice{background:#1a251e;border-radius:10px;padding:12px;margin:14px 0;color:#c9d4c8;font-size:.85rem}
+.empty{padding:55px 10px;text-align:center;color:#8ea79a;border:1px dashed #345143;border-radius:15px}
+footer{margin:32px 0;color:#82968b;font-size:.78rem}
+@media(max-width:660px){body{padding:14px}.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body><main>
+<header><div><h1><span class="signal">◉</span> Social Radar</h1>
+<p class="sub">Fresh Pump launches · X followers · Read-only</p></div><span id="state" class="pill">Loading…</span></header>
+<div class="stats">
+<div class="stat"><div class="value" id="launches">–</div><div class="muted">New launches seen</div></div>
+<div class="stat"><div class="value" id="links">–</div><div class="muted">X profiles linked</div></div>
+<div class="stat"><div class="value" id="alerts">–</div><div class="muted">Follower flags</div></div>
+<div class="stat"><div class="value" id="budget">–</div><div class="muted">X lookups / 15 min</div></div></div>
+<div id="coverage" class="notice">Collecting coverage information…</div>
+<h2>Latest follower flags</h2><div id="cards" class="cards"><div class="empty">Waiting for data…</div></div>
+<footer>Follower counts are not proof of endorsement or organic attention. No trades. Source reconnections may leave coverage gaps.</footer>
+</main><script>
+'use strict';
+function el(tag,cls,value){const n=document.createElement(tag);if(cls)n.className=cls;if(value!==undefined)n.textContent=String(value);return n;}
+function when(ms){return new Date(ms).toLocaleString();}
+function link(label,url){const a=el('a','',label);a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;}
+function card(row){
+ const article=el('article'),top=el('div','top'),left=el('div');
+ left.append(el('div','name',row.name||row.symbol||'Unnamed token'),el('div','muted',row.symbol||''));
+ top.append(left,el('div','followers',Number(row.followers).toLocaleString()+' followers'));
+ article.append(top);
+ const d=el('div','details');
+ d.append(el('span','','Flagged '+when(row.flaggedAtMs)),el('span','','X: @'+row.handle));
+ d.append(el('span',row.addressEvidence==='BIO_MENTIONS_MINT'?'signal':'muted',
+   row.addressEvidence==='BIO_MENTIONS_MINT'?'Mint mentioned in X bio (not ownership proof)':'No X-bio mint confirmation'));
+ if(row.profileReused)d.append(el('span','warning','Cached / reused account'));
+ if(row.demo)d.append(el('span','warning','DEMO — not real'));
+ article.append(d);
+ const links=el('div','links');
+ if(!row.demo)links.append(link('Pump.fun','https://pump.fun/coin/'+encodeURIComponent(row.mint)),
+  link('X profile','https://x.com/'+encodeURIComponent(row.handle)),
+  link('Solscan','https://solscan.io/token/'+encodeURIComponent(row.mint)));
+ article.append(links,el('div','muted','Token: '+row.mint));
+ return article;
+}
+async function refresh(){
+ try{
+  const [a,b]=await Promise.all([fetch('/api/status'),fetch('/api/alerts')]);
+  if(!a.ok||!b.ok)throw new Error('HTTP');
+  const s=await a.json(),alerts=await b.json();
+  document.getElementById('state').textContent=s.status;
+  document.getElementById('launches').textContent=s.metrics.launches.toLocaleString();
+  document.getElementById('links').textContent=s.metrics.xLinksFound.toLocaleString();
+  document.getElementById('alerts').textContent=s.metrics.flags.toLocaleString();
+  document.getElementById('budget').textContent=s.xCallsInRolling15m+'/'+s.xLookupsPer15m;
+  document.getElementById('coverage').textContent='Threshold ≥ '+s.followerThreshold.toLocaleString()+
+    ' followers · X lookups skipped by pacing: '+s.metrics.xLookupSkippedBudget+
+    ' · Missing metadata: '+s.metrics.metadataFailed+
+    ' · Queue drops: '+s.metrics.queueDropped+
+    ' · Source disconnects: '+s.metrics.streamDisconnects+' · Coverage is not guaranteed.';
+  const cards=document.getElementById('cards');cards.replaceChildren();
+  if(!alerts.length)cards.append(el('div','empty','No flagged accounts yet. New qualifying alerts appear here.'));
+  else for(const row of alerts)cards.append(card(row));
+ }catch{document.getElementById('state').textContent='LOCAL SERVER UNAVAILABLE';}
+}
+refresh();setInterval(refresh,3000);
+</script></body></html>
