@@ -214,6 +214,9 @@ export class Radar {
       accountOwnershipVerified: false, addressEvidence: 'UNAVAILABLE',
       demo: true
     });
+    this.metrics.launches = 1;
+    this.metrics.xLinksFound = 1;
+    this.metrics.flags = 1;
     this.status = 'DEMO_ONLY_NO_LIVE_SOURCE';
   }
 }
