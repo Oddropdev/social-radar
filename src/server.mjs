@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { Radar } from './radar.mjs';
 
 const demo = process.argv.includes('--demo');
-if (process.argv.some(arg => !['--demo'].includes(arg.slice(2)) && arg !== process.argv[0] && arg !== process.argv[1])) {
+if (process.argv.slice(2).some(arg => arg !== '--demo')) {
   console.error('Unsupported argument. Use npm start or npm run demo.');
   process.exit(2);
 }
